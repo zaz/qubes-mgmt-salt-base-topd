@@ -340,8 +340,10 @@ def get_top(path=None, opts=None, saltenv='base', pillar=False):
     valid = True
     try:  # Zaz: WTF is this?
         for topinfo in enabled:
+
+            # assume the top file is valid unless it fails the checks below
             valid = True
-            opts['state_top_saltenv'] = saltenv
+
             opts['state_top'] = toputils.salt_path(topinfo)
             rendered_top = render_top(opts, toputils, pillar=pillar)
 
@@ -350,29 +352,24 @@ def get_top(path=None, opts=None, saltenv='base', pillar=False):
                 log.warning(topinfo + " is an invalid top: not a dictionary. Skipping.")
                 continue
 
+
             # no idea why the dictionary of envs is wrapped in another
             # dictionary that always seems to contain only one item
             for wrapper in rendered_top.values():
                 for env in wrapper:
                     if not isinstance(env, (OrderedDict, DefaultOrderedDict)):
-                        log.warning(type(env))
-                        raise SaltRenderError(opts['state_top'] + " is an invalid top: Expected first level of hierarchy to be a dictionary from SALT env to dictionary. Instead, found: " + json.dumps(env) + " which has type " + type(env).__name__)
+                        log.warning(opts['state_top'] + " is an invalid top: Expected first level of hierarchy to be a dictionary from SALT env to dictionary. Instead, found: " + json.dumps(env) + " which has type " + type(env).__name__)
+                        valid = False
+                        break
 
-                    for vm in env:
+                    for vm in env.values():
                         if not isinstance(vm, (OrderedDict, DefaultOrderedDict)):
-                            log.warning(type(env))
-                            raise SaltRenderError(opts['state_top'] + " is an invalid top: Expected second level of hierarchy to be a dictionary from VMs to states. Instead, found: " + json.dumps(vm) + " which has type " + type(env).__name__)
+                            log.warning(opts['state_top'] + " is an invalid top: Expected second level of hierarchy to be a dictionary from VMs to states. Instead, found: " + json.dumps(vm) + " which has type " + type(vm).__name__)
+                            valid = False
+                            break
 
-
-            tops.append(rendered_top)
-            log.warning(json.dumps(rendered_top))
-            log.warning(rendered_top)
-            log.warning('Values:')
-            for value in rendered_top.values():
-                log.warning(value)
-            log.warning('~~~~~~~~~~~~~~~~~~~')
-            log.warning(rendered_top.values())
-            log.warning(type(rendered_top))
+            if valid:
+                tops.append(rendered_top)
 
         tops = dict(merge_tops(tops))
     except SaltRenderError:  # Zaz: WTF is this?
