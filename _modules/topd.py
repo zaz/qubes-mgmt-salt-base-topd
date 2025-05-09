@@ -275,19 +275,19 @@ def merge_tops(tops):
 
     # List of complied tops
     for _top in tops:
-        # ensure _top is a valid dictionary
-        if not isinstance(_top, dict):
+        # ensure ctop is a valid dictionary
+        if not isinstance(_top, dict):  # Zaz DEBUG
             raise SaltRenderError('Expected dictionary from SALT envs to ' \
-                    + 'dictionary of VMs to states, but got: ' + json.dumps(_top)) 
+                    + 'dictionary of VMs to states, but got: ' + json.dumps(_top)) # Zaz DEBUG
         # Compiled tops of one tops file
         for ctops in _top.values():
             # Targets in a list
             for ctop in ctops:
                 # ensure ctop is a valid dictionary
-                if not isinstance(ctop, dict): 
+                if not isinstance(ctop, dict):  # Zaz DEBUG
                     raise SaltRenderError('Expected dictionary from VMs to ' \
                             + 'list of states, but got: ' + json.dumps(ctop) \
-                            + '. This was found in ' + json.dumps(_top)) 
+                            + '. This was found in ' + json.dumps(_top))  # Zaz DEBUG
                 for saltenv, targets in ctop.items():
                     if saltenv == 'include':
                         continue
@@ -337,13 +337,45 @@ def get_top(path=None, opts=None, saltenv='base', pillar=False):
         view='raw'
     )  # pylint: disable=W0621
 
-    try:
+    valid = True
+    try:  # Zaz: WTF is this?
         for topinfo in enabled:
+            valid = True
             opts['state_top_saltenv'] = saltenv
             opts['state_top'] = toputils.salt_path(topinfo)
-            tops.append(render_top(opts, toputils, pillar=pillar))
+            rendered_top = render_top(opts, toputils, pillar=pillar)
+
+            # this should never occur, even if a top file is invalid
+            if not isinstance(rendered_top, (OrderedDict, DefaultOrderedDict)):
+                log.warning(topinfo + " is an invalid top: not a dictionary. Skipping.")
+                continue
+
+            # no idea why the dictionary of envs is wrapped in another
+            # dictionary that always seems to contain only one item
+            for wrapper in rendered_top.values():
+                for env in wrapper:
+                    if not isinstance(env, (OrderedDict, DefaultOrderedDict)):
+                        log.warning(type(env))
+                        raise SaltRenderError(opts['state_top'] + " is an invalid top: Expected first level of hierarchy to be a dictionary from SALT env to dictionary. Instead, found: " + json.dumps(env) + " which has type " + type(env).__name__)
+
+                    for vm in env:
+                        if not isinstance(vm, (OrderedDict, DefaultOrderedDict)):
+                            log.warning(type(env))
+                            raise SaltRenderError(opts['state_top'] + " is an invalid top: Expected second level of hierarchy to be a dictionary from VMs to states. Instead, found: " + json.dumps(vm) + " which has type " + type(env).__name__)
+
+
+            tops.append(rendered_top)
+            log.warning(json.dumps(rendered_top))
+            log.warning(rendered_top)
+            log.warning('Values:')
+            for value in rendered_top.values():
+                log.warning(value)
+            log.warning('~~~~~~~~~~~~~~~~~~~')
+            log.warning(rendered_top.values())
+            log.warning(type(rendered_top))
+
         tops = dict(merge_tops(tops))
-    except SaltRenderError:
-        raise
+    except SaltRenderError:  # Zaz: WTF is this?
+        raise  # Zaz: WTF is this?
 
     return tops
